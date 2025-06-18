@@ -9,6 +9,11 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Speech.Synthesis;
 using System.Collections.ObjectModel;
+using static System.Net.Mime.MediaTypeNames;
+using NAudio.Wave;
+using System.IO;
+using NAudio.Wave.SampleProviders;
+using System.Diagnostics;
 
 namespace NetSpeakLite
 {
@@ -57,9 +62,43 @@ namespace NetSpeakLite
             comboBoxVoiceList.SelectedIndex = 0;
         }
 
+        private void Speak(String text)
+        {
+            listBoxTextLog.Items.Add(text);
+            listBoxTextLog.SelectedIndex = listBoxTextLog.Items.Count - 1;
+            DoSpeak(text);
+        }
+
+        private void DoSpeak(string text)
+        {
+            //将音频输出至内存流
+            MemoryStream ms = new MemoryStream();
+            synth.SetOutputToWaveStream(ms);
+            //执行朗读
+            synth.Speak(text);
+            //重置内存流位置
+            ms.Position = 0;
+            //使用NAudio提升音量
+            var waveProvider = new WaveFileReader(ms);
+            var sampleProvider = new Pcm16BitToSampleProvider(waveProvider);
+            var volumeProvider = new VolumeSampleProvider(sampleProvider)
+            {
+                Volume = (float)numericUpDownVolNA.Value
+            };
+            using (var waveOutEvent = new WaveOutEvent())
+            {
+                waveOutEvent.Init(volumeProvider);
+                waveOutEvent.Play();
+                while (waveOutEvent.PlaybackState == PlaybackState.Playing)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+        }
+
         private void buttonSpeak_Click(object sender, EventArgs e)
         {
-            synth.Speak(textBox1.Text);
+            Speak(textBox1.Text);
         }
 
         private void comboBoxVoiceList_SelectedIndexChanged(object sender, EventArgs e)
@@ -88,8 +127,18 @@ namespace NetSpeakLite
             {
                 return;
             }
-            synth.Speak(comboBoxQuick.SelectedItem.ToString());
+            Speak(comboBoxQuick.SelectedItem.ToString());
             comboBoxQuick.SelectedIndex = -1;
+        }
+
+        private void buttonClearLog_Click(object sender, EventArgs e)
+        {
+            listBoxTextLog.Items.Clear();
+        }
+
+        private void listBoxTextLog_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            DoSpeak(listBoxTextLog.Text);
         }
     }
 }
